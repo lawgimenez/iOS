@@ -20,11 +20,7 @@
 import WebKit
 
 extension WKWebViewConfiguration {
-
-    public static var ddgNameForUserAgent: String {
-        return "DuckDuckGo/\(AppVersion.shared.majorVersionNumber)"
-    }
-    
+        
     public static func persistent() -> WKWebViewConfiguration {
         return configuration(persistsData: true)
     }
@@ -38,16 +34,11 @@ extension WKWebViewConfiguration {
         if !persistsData {
             configuration.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         }
-        if #available(iOSApplicationExtension 10.0, *) {
-            configuration.dataDetectorTypes = [.link, .phoneNumber]
-        }
+        configuration.dataDetectorTypes = [.link, .phoneNumber]
 
-        if #available(iOS 11, *) {
-            configuration.installHideAtbModals()
-        }
+        configuration.installHideAtbModals()
+        configuration.installContentBlockingRules()
 
-        let defaultNameForUserAgent = configuration.applicationNameForUserAgent ?? ""
-        configuration.applicationNameForUserAgent = "\(defaultNameForUserAgent) \(WKWebViewConfiguration.ddgNameForUserAgent)"
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.allowsInlineMediaPlayback = true
         configuration.allowsPictureInPictureMediaPlayback = true
@@ -56,7 +47,6 @@ extension WKWebViewConfiguration {
         return configuration
     }
 
-    @available(iOS 11, *)
     private func installHideAtbModals() {
         guard let store = WKContentRuleListStore.default() else { return }
         let rules = """
@@ -78,100 +68,28 @@ extension WKWebViewConfiguration {
             self.userContentController.add(rulesList)
         }
     }
-
-    public func loadScripts(storageCache: StorageCache, contentBlockingEnabled: Bool) {
-        Loader(contentController: userContentController,
-               storageCache: storageCache,
-               injectContentBlockingScripts: contentBlockingEnabled).load()
-    }
-
-}
-
-private struct Loader {
-
-    struct CacheNames {
-
-        static let surrogateJson = "surrogateJson"
-
+    
+    private func installContentBlockingRules() {
+        func addRulesToController(rules: WKContentRuleList) {
+            self.userContentController.add(rules)
+        }
+        
+        // Get rules list from manager and add to userContentController
+        if let rulesList = ContentBlockerRulesManager.shared.blockingRules {
+            addRulesToController(rules: rulesList)
+        } else {
+            ContentBlockerRulesManager.shared.compileRules { rulesList in
+                if let rulesList = rulesList {
+                    addRulesToController(rules: rulesList)
+                }
+            }
+        }
     }
     
-    let cache = ContentBlockerStringCache()
-    let javascriptLoader = JavascriptLoader()
-
-    let userContentController: WKUserContentController
-    let injectContentBlockingScripts: Bool
-    
-    let whitelist: String
-    let surrogates: String
-    let trackerData: String
-
-    init(contentController: WKUserContentController, storageCache: StorageCache, injectContentBlockingScripts: Bool) {
-        self.userContentController = contentController
-        self.injectContentBlockingScripts = injectContentBlockingScripts
-        
-        self.whitelist = (WhitelistManager().domains?.joined(separator: "\n") ?? "")
-            + "\n"
-            + (storageCache.fileStore.loadAsString(forConfiguration: .temporaryWhitelist) ?? "")
-        self.surrogates = storageCache.fileStore.loadAsString(forConfiguration: .surrogates) ?? ""
-
-        // Encode whatever the tracker data manager is using to ensure it's in sync and because we know it will work
-        let encodedTrackerData = try? JSONEncoder().encode(TrackerDataManager.shared.trackerData)
-        self.trackerData = String(data: encodedTrackerData!, encoding: .utf8)!
-    }
-
-    func load() {
-        let spid = Instruments.shared.startTimedEvent(.injectScripts)
-        loadMainFrameOnlyScripts()
-
-        loadMessagingScripts()
-        loadLoginScript()
-        
-        if injectContentBlockingScripts {
-            loadContentBlockingScripts()
-        }
-        
-        Instruments.shared.endTimedEvent(for: spid)
-    }
-
-    private func loadLoginScript() {
-        load(scripts: [ .loginDetection ], forMainFrameOnly: false)
-    }
-
-    private func loadMainFrameOnlyScripts() {
-        if #available(iOS 13, *) {
-            load(scripts: [ .findinpage  ] )
-        } else {
-            load(scripts: [ .document, .findinpage ] )
+    public func installContentRules(trackerProtection: Bool) {
+        self.installHideAtbModals()
+        if trackerProtection {
+            self.installContentBlockingRules()
         }
     }
-
-    private func loadContentBlockingScripts() {
-        javascriptLoader.load(script: .contentblocker, withReplacements: [
-            "${whitelist}": whitelist,
-            "${trackerData}": trackerData,
-            "${surrogates}": surrogates
-        ], into: userContentController, forMainFrameOnly: false)
-        load(scripts: [ .detection ], forMainFrameOnly: false)
-    }
-
-    private func loadMessagingScripts() {
-        load(scripts: [ .messaging ], forMainFrameOnly: false)
-
-        if isDebugBuild {
-            javascriptLoader.load(script: .debugMessagingEnabled,
-                                  into: userContentController,
-                                  forMainFrameOnly: false)
-        } else {
-            javascriptLoader.load(script: .debugMessagingDisabled,
-                                  into: userContentController,
-                                  forMainFrameOnly: false)
-        }
-    }
-
-    private func load(scripts: [JavascriptLoader.Script], forMainFrameOnly: Bool = true) {
-        for script in scripts {
-            javascriptLoader.load(script, into: userContentController, forMainFrameOnly: forMainFrameOnly)
-        }
-    }
-
 }

@@ -19,26 +19,17 @@
 
 import UIKit
 import Core
-import Kingfisher
 
 class BookmarkCell: UITableViewCell {
     
     static let reuseIdentifier = "Bookmark"
-    static let placeholderFavicon = #imageLiteral(resourceName: "GlobeSmall")
     
     @IBOutlet weak var favicon: UIImageView!
     @IBOutlet weak var title: UILabel!
     
     func update(withBookmark bookmark: Link) {
-        title.text = bookmark.title
-        configureFavicon(forDomain: bookmark.url.host)
+        title.text = bookmark.displayTitle
+        favicon.loadFavicon(forDomain: bookmark.url.host, usingCache: .bookmarks)
     }
     
-    private func configureFavicon(forDomain domain: String?) {
-        favicon.image = BookmarkCell.placeholderFavicon
-        if let domain = domain {
-            let faviconUrl = AppUrls().faviconUrl(forDomain: domain)
-            favicon.kf.setImage(with: faviconUrl, placeholder: BookmarkCell.placeholderFavicon)
-        }
-    }
 }

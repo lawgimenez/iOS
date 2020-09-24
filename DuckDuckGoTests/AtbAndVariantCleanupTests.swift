@@ -34,6 +34,11 @@ class AtbAndVariantCleanupTests: XCTestCase {
     let mockStorage = MockStatisticsStore()
     let mockVariantManager = MockVariantManager()
 
+    override func setUp() {
+        super.setUp()
+        UserDefaults.clearStandard()
+    }
+
     func testWhenAtbHasVariantThenAtbStoredWithVariantRemoved() {
 
         mockStorage.atb = "\(Constants.atb)\(Constants.variant)"
@@ -58,7 +63,8 @@ class AtbAndVariantCleanupTests: XCTestCase {
 
     func testWhenVariantIsInCurrentExperimentThenVariantIsNotRemovedFromStorage() {
 
-        let mockVariantManager = MockVariantManager(currentVariant: Variant(name: Constants.variant, weight: 100, features: []))
+        let variant = Variant(name: Constants.variant, weight: 100, isIncluded: Variant.When.always, features: [])
+        let mockVariantManager = MockVariantManager(currentVariant: variant)
 
         mockStorage.atb = "\(Constants.atb)\(Constants.variant)"
         mockStorage.variant = Constants.variant
@@ -67,24 +73,6 @@ class AtbAndVariantCleanupTests: XCTestCase {
 
         XCTAssertEqual(Constants.variant, mockStorage.variant)
 
-    }
-
-    func testWhenPreviousVariantIsHomePageExperimentThenSettingsAreUpdatedCorrectly() {
-        
-        let cases: [String: HomePageConfiguration.ConfigName] = [
-            "": .simple,
-            "mk": .simple,
-            "ml": .centerSearchAndFavorites,
-            "mm": .centerSearchAndFavorites,
-            "mn": .centerSearch]
-
-        for testCase in cases {
-            let mockSettings = MockAppSettings()
-            mockStorage.variant = testCase.key
-            AtbAndVariantCleanup.cleanup(statisticsStorage: mockStorage, variantManager: mockVariantManager, settings: mockSettings)
-            XCTAssertEqual(mockSettings.homePage, testCase.value)
-        }
-        
     }
     
 }

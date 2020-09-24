@@ -21,29 +21,9 @@ import Foundation
 
 public class FileStore {
     
-    struct Constants {
-        static let legacyFiles = [
-            "disconnectme.json",
-            "easylistWhitelist.txt",
-            "entitylist2.json",
-            "surrogate.js"
-        ]
-    }
-    
     private let groupIdentifier: String = ContentBlockerStoreConstants.groupName
 
     public init() { }
-        
-    /// Remove all legacy data.
-    ///
-    /// Removes files listed in `Constants.legacyFiles`
-    ///
-    public func removeLegacyData() {
-        let path = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupIdentifier)
-        Constants.legacyFiles.forEach {
-            try? FileManager.default.removeItem(at: path!.appendingPathComponent($0))
-        }
-    }
     
     func persist(_ data: Data?, forConfiguration config: ContentBlockerRequest.Configuration) -> Bool {
         guard let data = data else { return false }
@@ -58,6 +38,14 @@ public class FileStore {
     
     func loadAsString(forConfiguration config: ContentBlockerRequest.Configuration) -> String? {
         return try? String(contentsOf: persistenceLocation(forConfiguration: config))
+    }
+    
+    func loadAsArray(forConfiguration config: ContentBlockerRequest.Configuration) -> [String] {
+        if let fileStr = try? String(contentsOf: persistenceLocation(forConfiguration: config)) {
+            return fileStr.components(separatedBy: "\n")
+        }
+        
+        return []
     }
     
     func loadAsData(forConfiguration config: ContentBlockerRequest.Configuration) -> Data? {

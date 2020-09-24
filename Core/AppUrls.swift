@@ -28,22 +28,22 @@ public struct AppUrls {
         }
         
         static let base = ProcessInfo.processInfo.environment["BASE_URL", default: "https://duckduckgo.com"]
+        static let externalContentBase = "https://external-content.duckduckgo.com"
         static let staticBase = "https://staticcdn.duckduckgo.com"
         
         static let autocomplete = "\(base)/ac/"
         
         static let surrogates = "\(base)/contentblocking.js?l=surrogates"
-        static let temporaryWhitelist = "\(base)/contentblocking/trackers-whitelist-temporary.txt"
-        static let trackerDataSet = "\(staticBase)/trackerblocking/v2/tds.json"
+        static let temporaryUnprotectedSites = "\(base)/contentblocking/trackers-whitelist-temporary.txt"
+        static let trackerDataSet = "\(staticBase)/trackerblocking/v2.1/tds.json"
 
         static let atb = "\(base)/atb.js\(devMode)"
         static let exti = "\(base)/exti/\(devMode)"
         static let feedback = "\(base)/feedback.js?type=app-feedback"
-        static let faviconService = "\(base)/ip3/%@.ico"
  
         static let httpsBloomFilter = "\(staticBase)/https/https-mobile-bloom.bin?cache-version=1"
         static let httpsBloomFilterSpec = "\(staticBase)/https/https-mobile-bloom-spec.json?cache-version=1"
-        static let httpsWhitelist = "\(staticBase)/https/https-mobile-whitelist.json?cache-version=1"
+        static let httpsExcludedDomains = "\(staticBase)/https/https-mobile-whitelist.json?cache-version=1"
         static let httpsLookupService = "\(base)/smarter_encryption.js"
 
         static let pixelBase = ProcessInfo.processInfo.environment["PIXEL_BASE_URL", default: "https://improving.duckduckgo.com"]
@@ -86,19 +86,14 @@ public struct AppUrls {
         return URL(string: Url.trackerDataSet)!
     }
     
-    public var temporaryWhitelist: URL {
-        return URL(string: Url.temporaryWhitelist)!
+    public var temporaryUnprotectedSites: URL {
+        return URL(string: Url.temporaryUnprotectedSites)!
     }
 
     public var feedback: URL {
         return URL(string: Url.feedback)!
     }
     
-    public func faviconUrl(forDomain domain: String) -> URL? {
-        let urlString = String(format: Url.faviconService, domain)
-        return URL(string: urlString)
-    }
-
     public var initialAtb: URL {
         return URL(string: Url.atb)!
     }
@@ -122,10 +117,14 @@ public struct AppUrls {
             .addParam(name: Param.setAtb, value: setAtb)
     }
 
+    public func isDuckDuckGo(domain: String?) -> Bool {
+        guard let domain = domain, let url = URL(string: "https://\(domain)") else { return false }
+        return isDuckDuckGo(url: url)
+    }
+    
     public func isDuckDuckGo(url: URL) -> Bool {
-        guard let host = url.host else { return false }
         guard let searchHost = base.host else { return false }
-        return host == searchHost || host.hasSuffix(".\(searchHost)")
+        return url.isPart(ofDomain: searchHost)
     }
 
     public func searchQuery(fromUrl url: URL) -> String? {
@@ -187,8 +186,8 @@ public struct AppUrls {
         return URL(string: Url.httpsBloomFilterSpec)!
     }
 
-    public var httpsWhitelist: URL {
-        return URL(string: Url.httpsWhitelist)!
+    public var httpsExcludedDomains: URL {
+        return URL(string: Url.httpsExcludedDomains)!
     }
 
     public func httpsLookupServiceUrl(forPartialHost partialHashedHost: String) -> URL {

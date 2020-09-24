@@ -19,6 +19,7 @@
 
 import XCTest
 import OHHTTPStubs
+import OHHTTPStubsSwift
 
 @testable import Core
 
@@ -27,7 +28,8 @@ class HTTPSUpgradeTests: XCTestCase {
     let host = AppUrls().httpsLookupServiceUrl(forPartialHost: "").host!
 
     override func tearDown() {
-        OHHTTPStubs.removeAllStubs()
+        HTTPStubs.removeAllStubs()
+        HTTPStubs.allStubs()
         super.tearDown()
     }
 
@@ -45,10 +47,10 @@ class HTTPSUpgradeTests: XCTestCase {
         waitForExpectations(timeout: 1.0, handler: nil)
     }
     
-    func testWhenURLIsInWhiteListThenShouldUpgradeResultIsFalse() {
+    func testWhenURLIsExcludedThenShouldUpgradeResultIsFalse() {
         
-        let expect = expectation(description: "Http url in whitelist should not be upgraded")
-        let url = URL(string: "http://whitelisted.url")!
+        let expect = expectation(description: "Excluded http:// urls should not be upgraded")
+        let url = URL(string: "http://excluded.url")!
         
         let testee = HTTPSUpgrade(store: MockHTTPSUpgradeStore(bloomFilter: bloomFilter()))
         testee.loadData()
@@ -112,7 +114,7 @@ class HTTPSUpgradeTests: XCTestCase {
         let expect = expectation(description: "When service request fails http url should not be upgraded")
         let url = URL(string: "http://service.url")!
         stub(condition: isHost(host)) { _ in
-            return OHHTTPStubsResponse(data: Data(), statusCode: 404, headers: nil)
+            return HTTPStubsResponse(data: Data(), statusCode: 404, headers: nil)
         }
         
         let testee = HTTPSUpgrade(store: MockHTTPSUpgradeStore(bloomFilter: bloomFilter()))
@@ -160,7 +162,7 @@ class HTTPSUpgradeTests: XCTestCase {
     private func bloomFilter() -> BloomFilterWrapper {
         let filter = BloomFilterWrapper(totalItems: Int32(1000), errorRate: 0.0001)!
         filter.add("locallyUpgradable.url")
-        filter.add("whitelisted.url")
+        filter.add("excluded.url")
         return filter
     }
     
@@ -189,11 +191,11 @@ private class MockHTTPSUpgradeStore: HTTPSUpgradeStore {
         return true
     }
     
-    func hasWhitelistedDomain(_ domain: String) -> Bool {
-        return domain == "whitelisted.url"
+    func shouldUpgradeDomain(_ domain: String) -> Bool {
+        return domain != "excluded.url"
     }
     
-    func persistWhitelist(domains: [String]) -> Bool {
+    func persistExcludedDomains(_ domains: [String]) -> Bool {
         return true
     }
 }

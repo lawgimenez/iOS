@@ -19,9 +19,10 @@
 
 import UIKit
 import Core
-import EasyTipView
 import UserNotifications
 import os.log
+import Kingfisher
+import WidgetKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -30,28 +31,35 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         static let clipboard = "com.duckduckgo.mobile.ios.clipboard"
     }
     
+    static var shared: AppDelegate {
+        // swiftlint:disable force_cast
+        return UIApplication.shared.delegate as! AppDelegate
+        // swiftlint:enable force_cast
+    }
+    
     private var testing = false
-    private var appIsLaunching = false
+    var appIsLaunching = false
     var overlayWindow: UIWindow?
     var window: UIWindow?
 
     private lazy var bookmarkStore: BookmarkStore = BookmarkUserDefaults()
     private lazy var privacyStore = PrivacyUserDefaults()
     private var autoClear: AutoClear?
+    private var showKeyboardIfSettingOn = true
 
     // MARK: lifecycle
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        
         testing = ProcessInfo().arguments.contains("testing")
         if testing {
             Database.shared.loadStore { _ in }
             window?.rootViewController = UIStoryboard.init(name: "LaunchScreen", bundle: nil).instantiateInitialViewController()
             return true
         }
-        
+
+        _ = UserAgentManager.shared
+
         DispatchQueue.global(qos: .background).async {
-            FileStore().removeLegacyData()
             ContentBlockerStringCache.removeLegacyData()
         }
         
@@ -59,7 +67,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             DatabaseMigration.migrate(to: context)
         }
         
-        EasyTipView.updateGlobalPreferences()
         HTTPSUpgrade.shared.loadDataAsync()
         
         // assign it here, because "did become active" is already too late and "viewWillAppear"
@@ -67,57 +74,116 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         AtbAndVariantCleanup.cleanup()
         DefaultVariantManager().assignVariantIfNeeded { _ in
             // MARK: perform first time launch logic here
-            
-            // Remove users with devices that does not support App Icon switching
-            return AppIconManager.shared.isAppIconChangeSupported
+            DaxDialogs().primeForUse()
         }
 
         if let main = mainViewController {
             autoClear = AutoClear(worker: main)
             autoClear?.applicationDidLaunch()
         }
-
+        
+        clearLegacyAllowedDomainCookies()
+        
         appIsLaunching = true
         return true
+    }
+
+    private func clearLegacyAllowedDomainCookies() {
+        let domains = PreserveLogins.shared.legacyAllowedDomains
+        guard !domains.isEmpty else { return }
+        WebCacheManager.shared.removeCookies(forDomains: domains, completion: {
+            os_log("Removed cookies for %d legacy allowed domains", domains.count)
+            PreserveLogins.shared.clearLegacyAllowedDomains()
+        })
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         guard !testing else { return }
         
+        if !(overlayWindow?.rootViewController is AuthenticationViewController) {
+            removeOverlay()
+        }
+        
         StatisticsLoader.shared.load {
             StatisticsLoader.shared.refreshAppRetentionAtb()
-            Pixel.fire(pixel: .appLaunch)
+            self.fireAppLaunchPixel()
         }
         
         if appIsLaunching {
             appIsLaunching = false
             onApplicationLaunch(application)
         }
+        
+        if !privacyStore.authenticationEnabled {
+            showKeyboardOnLaunch()
+        }
+    }
+
+    private func fireAppLaunchPixel() {
+
+        if #available(iOS 14, *) {
+            WidgetCenter.shared.getCurrentConfigurations { result in
+
+                let paramKeys: [WidgetFamily: String] = [
+                    .systemSmall: PixelParameters.widgetSmall,
+                    .systemMedium: PixelParameters.widgetMedium,
+                    .systemLarge: PixelParameters.widgetLarge
+                ]
+
+                switch result {
+                case .failure(let error):
+                    Pixel.fire(pixel: .appLaunch, withAdditionalParameters: [
+                        PixelParameters.widgetError: "1",
+                        PixelParameters.widgetErrorCode: "\((error as NSError).code)",
+                        PixelParameters.widgetErrorDomain: (error as NSError).domain
+                    ])
+
+                case .success(let widgetInfo):
+                    let params = widgetInfo.reduce([String: String]()) {
+                        var result = $0
+                        if let key = paramKeys[$1.family] {
+                            result[key] = "1"
+                        }
+                        return result
+                    }
+                    Pixel.fire(pixel: .appLaunch, withAdditionalParameters: params)
+                }
+
+            }
+        } else {
+            Pixel.fire(pixel: .appLaunch, withAdditionalParameters: [PixelParameters.widgetUnavailable: "1"])
+        }
+
+    }
+
+    private func showKeyboardOnLaunch() {
+        guard KeyboardSettings().onAppLaunch && showKeyboardIfSettingOn else { return }
+        self.mainViewController?.enterSearch()
+        showKeyboardIfSettingOn = false
+    }
+    
+    func applicationWillResignActive(_ application: UIApplication) {
+        displayBlankSnapshotWindow()
     }
     
     private func onApplicationLaunch(_ application: UIApplication) {
-       
-        if privacyStore.authenticationEnabled {
-            displayAuthenticationWindow()
-            beginAuthentication()
-        }
-        
+        beginAuthentication()
         AppConfigurationFetch().start(completion: nil)
         initialiseBackgroundFetch(application)
+        applyAppearanceChanges()
+    }
+    
+    private func applyAppearanceChanges() {
+        UILabel.appearance(whenContainedInInstancesOf: [UIAlertController.self]).numberOfLines = 0
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
-        if privacyStore.authenticationEnabled {
-            beginAuthentication()
-        } else {
-            removeOverlay()
-        }
-        
+        beginAuthentication()
         autoClear?.applicationWillMoveToForeground()
+        showKeyboardIfSettingOn = true
     }
 
     func applicationDidEnterBackground(_ application: UIApplication) {
-        displayOverlay()
         autoClear?.applicationDidEnterBackground()
     }
 
@@ -131,17 +197,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         os_log("App launched with url %s", log: lifecycleLog, type: .debug, url.absoluteString)
         mainViewController?.clearNavigationStack()
         autoClear?.applicationWillMoveToForeground()
+        showKeyboardIfSettingOn = false
         
         if AppDeepLinks.isNewSearch(url: url) {
-            mainViewController?.launchNewSearch()
+            mainViewController?.newTab()
+            if url.getParam(name: "w") != nil {
+                Pixel.fire(pixel: .widgetNewSearch)
+                mainViewController?.enterSearch()
+            }
+        } else if AppDeepLinks.isLaunchFavorite(url: url) {
+            let query = AppDeepLinks.query(fromLaunchFavorite: url)
+            mainViewController?.loadQueryInNewTab(query)
+            Pixel.fire(pixel: .widgetFavoriteLaunch)
         } else if AppDeepLinks.isQuickLink(url: url) {
             let query = AppDeepLinks.query(fromQuickLink: url)
             mainViewController?.loadQueryInNewTab(query)
         } else if AppDeepLinks.isBookmarks(url: url) {
             mainViewController?.onBookmarksPressed()
         } else if AppDeepLinks.isFire(url: url) {
+            if !privacyStore.authenticationEnabled {
+                removeOverlay()
+            }
             mainViewController?.onQuickFirePressed()
+        } else {
+            Pixel.fire(pixel: .defaultBrowserLaunch)
+            mainViewController?.loadUrlInNewTab(url)
         }
+        
         return true
     }
 
@@ -154,20 +236,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
+    func application(_ application: UIApplication, willContinueUserActivityWithType userActivityType: String) -> Bool {
+        return true
+    }
+
     // MARK: private
 
     private func initialiseBackgroundFetch(_ application: UIApplication) {
         application.setMinimumBackgroundFetchInterval(60 * 60 * 24)
     }
     
-    private func displayOverlay() {
-        if privacyStore.authenticationEnabled {
-            displayAuthenticationWindow()
-        } else {
-            displayBlankSnapshotWindow()
-        }
-    }
-
     private func displayAuthenticationWindow() {
         guard overlayWindow == nil, let frame = window?.frame else { return }
         overlayWindow = UIWindow(frame: frame)
@@ -179,7 +257,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
     private func displayBlankSnapshotWindow() {
         guard overlayWindow == nil, let frame = window?.frame else { return }
-        guard autoClear?.isClearingEnabled ?? false else { return }
+        guard autoClear?.isClearingEnabled ?? false || privacyStore.authenticationEnabled else { return }
         
         overlayWindow = UIWindow(frame: frame)
         overlayWindow?.windowLevel = UIWindow.Level.alert
@@ -189,12 +267,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func beginAuthentication() {
+        
+        guard privacyStore.authenticationEnabled else { return }
+
+        removeOverlay()
+        displayAuthenticationWindow()
+        
         guard let controller = overlayWindow?.rootViewController as? AuthenticationViewController else {
             removeOverlay()
             return
         }
+        
         controller.beginAuthentication { [weak self] in
             self?.removeOverlay()
+            self?.showKeyboardOnLaunch()
         }
     }
 

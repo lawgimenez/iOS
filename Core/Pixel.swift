@@ -18,12 +18,12 @@
 //
 
 import Foundation
-import Alamofire
 import os.log
 
 public enum PixelName: String {
     
     case appLaunch = "ml"
+    case defaultBrowserLaunch = "m_dl"
     case navigationDetected = "m_n"
 
     case forgetAllPressedBrowsing = "mf_bp"
@@ -37,9 +37,9 @@ public enum PixelName: String {
     case privacyDashboardNetworks = "mp_n"
     case privacyDashboardPrivacyPractices = "mp_p"
     case privacyDashboardGlobalStats = "mp_s"
-    case privacyDashboardWhitelistAdd = "mp_wla"
-    case privacyDashboardWhitelistRemove = "mp_wlr"
-    case privacyDashboardManageWhitelist = "mp_mw"
+    case privacyDashboardProtectionDisabled = "mp_wla"
+    case privacyDashboardProtectionEnabled = "mp_wlr"
+    case privacyDashboardManageProtection = "mp_mw"
     case privacyDashboardReportBrokenSite = "mp_rb"
     
     case httpsNoLookup = "m_https_nl"
@@ -67,8 +67,11 @@ public enum PixelName: String {
     case bookmarksEditPressed = "m_b_e"
     case overlayFavoriteLaunched = "m_ov_f"
     
+    case tabSwitcherNewLayoutSeen = "m_ts_n"
+    case tabSwitcherListEnabled = "m_ts_l"
+    case tabSwitcherGridEnabled = "m_ts_g"
+    
     case settingsOpened = "ms"
-    case settingsOpenedFromTabsSwitcher = "ms_ot"
     case settingsHomeRowInstructionsRequested = "ms_hr"
     
     case settingsThemeShown = "ms_tp"
@@ -85,11 +88,13 @@ public enum PixelName: String {
     case settingsAppIconChangedPurple = "ms_aic_purple"
     case settingsAppIconChangedBlack = "ms_aic_black"
 
-    case settingsHomePageShown = "ms_hp"
-    case settingsHomePageSimple = "ms_hp_s"
-    case settingsHomePageCenterSearch = "ms_hp_c"
-    case settingsHomePageCenterSearchAndFavorites = "ms_hp_f"
-    case settingsManageWhitelist = "ms_mw"
+    case settingsKeyboardShown = "ms_ks"
+    case settingsKeyboardNewTabOn = "ms_ks_nt_on"
+    case settingsKeyboardNewTabOff = "ms_ks_nt_off"
+    case settingsKeyboardAppLaunchOn = "ms_ks_al_on"
+    case settingsKeyboardAppLaunchOff = "ms_ks_pl_off"
+    
+    case settingsUnprotectedSites = "ms_mw"
     case settingsLinkPreviewsOff = "ms_lp_f"
     case settingsLinkPreviewsOn = "ms_lp_n"
 
@@ -112,9 +117,10 @@ public enum PixelName: String {
     case browsingMenuShare = "mb_sh"
     case browsingMenuSettings = "mb_st"
     case browsingMenuFindInPage = "mb_fp"
-    case browsingMenuWhitelistAdd = "mb_wla"
-    case browsingMenuWhitelistRemove = "mb_wlr"
+    case browsingMenuDisableProtection = "mb_wla"
+    case browsingMenuEnableProtection = "mb_wlr"
     case browsingMenuReportBrokenSite = "mb_rb"
+    case browsingMenuFireproof = "mb_f"
     
     case tabBarBackPressed = "mt_bk"
     case tabBarForwardPressed = "mt_fw"
@@ -122,9 +128,6 @@ public enum PixelName: String {
     case tabBarBookmarksLongPressed = "mt_bl"
     case tabBarTabSwitcherPressed = "mt_tb"
 
-    case onboardingShown = "m_o"
-    case onboardingSummaryFinished = "m_o_s"
-    
     case homeScreenShown = "mh"
     case homeScreenSearchTapped = "mh_st"
     case homeScreenFavouriteLaunched = "mh_fl"
@@ -133,7 +136,6 @@ public enum PixelName: String {
     case homeScreenAddFavoriteCancel = "mh_af_c"
     case homeScreenEditFavorite = "mh_ef"
     case homeScreenDeleteFavorite = "mh_df"
-    case homeScreenPrivacyStatsTapped = "mh_ps"
     
     case homeRowCTAReminderTapped = "m_hc"
     case homeRowCTAReminderDismissed = "m_hd"
@@ -178,12 +180,9 @@ public enum PixelName: String {
     case notificationOptOut = "m_nd"
     
     case brokenSiteReported = "m_bsr"
+    
+    case brokenSiteReport = "epbf"
 
-    case preserveLoginsUserDecisionPreserve = "m_pl_p"
-    case preserveLoginsUserDecisionForget = "m_pl_f"
-    case preserveLoginsSettingsWhilePreserving = "m_pl_s_p"
-    case preserveLoginsSettingsWhileForgetting = "m_pl_s_f"
-    case preserveLoginsSettingsNewUser = "m_pl_s_u"
     case preserveLoginsSettingsSwitchOn = "m_pl_s_on"
     case preserveLoginsSettingsSwitchOff = "m_pl_s_off"
     case preserveLoginsSettingsEdit = "m_pl_s_c_e"
@@ -191,6 +190,16 @@ public enum PixelName: String {
     case preserveLoginsSettingsDeleteNotEditing = "m_pl_s_c_in"
     case preserveLoginsSettingsClearAll = "m_pl_s_c_a"
     
+    case daxDialogsSerp = "m_dx_s"
+    case daxDialogsWithoutTrackers = "m_dx_wo"
+    case daxDialogsWithTrackers = "m_dx_wt"
+    case daxDialogsSiteIsMajor = "m_dx_sm"
+    case daxDialogsSiteOwnedByMajor = "m_dx_so"
+    case daxDialogsHidden = "m_dx_h"
+
+    case widgetFavoriteLaunch = "m_w_fl"
+    case widgetNewSearch = "m_w_ns"
+        
     // debug pixels:
     
     case dbMigrationError = "m_d_dbme"
@@ -198,7 +207,7 @@ public enum PixelName: String {
     case dbDestroyError = "m_d_dbde"
     case dbDestroyFileError = "m_d_dbdf"
     case dbInitializationError = "m_d_dbie"
-    case dbSaveWhitelistError = "m_d_dbsw"
+    case dbSaveExcludedHTTPSDomainsError = "m_d_dbsw"
     case dbSaveBloomFilterError = "m_d_dbsb"
     
     case configurationFetchInfo = "m_d_cfgfetch"
@@ -213,6 +222,12 @@ public enum PixelName: String {
 
     case settingsAppIconChangeFailed = "m_d_aicf"
     case settingsAppIconChangeNotSupported = "m_d_aicns"
+    
+    case defaultBrowserButtonPressedOnboarding = "m_db_o"
+    case defaultBrowserButtonPressedSettings = "m_db_s"
+    case defaultBrowserButtonPressedHome = "m_db_h"
+    case defaultBrowserHomeMessageShown = "m_db_h_s"
+    case defaultBrowserHomeMessageDismissed = "m_db_h_d"
 }
 
 public struct PixelParameters {
@@ -231,6 +246,14 @@ public struct PixelParameters {
     static let underlyingErrorDesc = "ud"
 
     public static let tabCount = "tc"
+
+    public static let widgetSmall = "ws"
+    public static let widgetMedium = "wm"
+    public static let widgetLarge = "wl"
+    public static let widgetError = "we"
+    public static let widgetErrorCode = "ec"
+    public static let widgetErrorDomain = "ed"
+    public static let widgetUnavailable = "wx"
 }
 
 public struct PixelValues {
@@ -251,7 +274,7 @@ public class Pixel {
     
     public static func fire(pixel: PixelName,
                             forDeviceType deviceType: UIUserInterfaceIdiom = UIDevice.current.userInterfaceIdiom,
-                            withAdditionalParameters params: [String: String?] = [:],
+                            withAdditionalParameters params: [String: String] = [:],
                             withHeaders headers: HTTPHeaders = APIHeaders().defaultHeaders,
                             onComplete: @escaping (Error?) -> Void = {_ in }) {
         
@@ -262,13 +285,12 @@ public class Pixel {
         }
         
         let formFactor = deviceType == .pad ? Constants.tablet : Constants.phone
-        let url = appUrls
-            .pixelUrl(forPixelNamed: pixel.rawValue, formFactor: formFactor)
-            .addParams(newParams)
+        let url = appUrls.pixelUrl(forPixelNamed: pixel.rawValue, formFactor: formFactor)
         
-        Alamofire.request(url, headers: headers).validate(statusCode: 200..<300).response { response in
-            os_log("Pixel fired %s", log: generalLog, type: .debug, pixel.rawValue)
-            onComplete(response.error)
+        APIRequest.request(url: url, parameters: newParams, headers: headers, callBackOnMainThread: true) { (_, error) in
+            
+            os_log("Pixel fired %s %s", log: generalLog, type: .debug, pixel.rawValue, "\(params)")
+            onComplete(error)
         }
     }
     
@@ -276,7 +298,7 @@ public class Pixel {
 
 extension Pixel {
     
-    public static func fire(pixel: PixelName, error: Error, withAdditionalParameters params: [String: String?] = [:], isCounted: Bool = false) {
+    public static func fire(pixel: PixelName, error: Error, withAdditionalParameters params: [String: String] = [:], isCounted: Bool = false) {
         let nsError = error as NSError
         var newParams = params
         newParams[PixelParameters.errorCode] = "\(nsError.code)"
@@ -305,7 +327,7 @@ public class TimedPixel {
         self.date = date
     }
     
-    public func fire(_ fireDate: Date = Date(), withAdditionalParmaeters params: [String: String?] = [:]) {
+    public func fire(_ fireDate: Date = Date(), withAdditionalParmaeters params: [String: String] = [:]) {
         let duration = String(fireDate.timeIntervalSince(date))
         var newParams = params
         newParams[PixelParameters.duration] = duration

@@ -24,6 +24,9 @@ struct DarkTheme: Theme {
     var currentImageSet: ThemeManager.ImageSet = .dark
     var statusBarStyle: UIStatusBarStyle = .lightContent
     var keyboardAppearance: UIKeyboardAppearance = .dark
+
+    var tabsBarBackgroundColor = UIColor.nearlyBlack
+    var tabsBarSeparatorColor = UIColor.darkGreyish
     
     var backgroundColor = UIColor.nearlyBlack
     
@@ -56,6 +59,11 @@ struct DarkTheme: Theme {
     var tableCellAccessoryColor = UIColor.greyish3
     var tableCellHighlightedBackgroundColor = UIColor.greyishBrown
     var tableHeaderTextColor = UIColor.greyish3
+    
+    var tabSwitcherCellBackgroundColor = UIColor.nearlyBlackLight
+    var tabSwitcherCellBorderColor = UIColor.white
+    var tabSwitcherCellTextColor = UIColor.white
+    var tabSwitcherCellSecondaryTextColor = UIColor.lightMercury
     
     var iconCellBorderColor = UIColor.lightGreyish
 
@@ -90,4 +98,18 @@ struct DarkTheme: Theme {
     var activityStyle: UIActivityIndicatorView.Style = .white
     
     var destructiveColor: UIColor = UIColor.destructive
+    
+    var ddgTextTintColor: UIColor = .white
+
+    var daxDialogBackgroundColor: UIColor = .nearlyBlackLight
+    var daxDialogTextColor: UIColor = UIColor.nearlyWhite
+    
+    var homeMessageBackgroundColor = UIColor.nearlyBlackLight
+    var homeMessageHeaderTextColor = UIColor.white
+    var homeMessageSubheaderTextColor = UIColor.greyish2
+    var homeMessageTopTextColor = UIColor.cornflowerBlue
+    var homeMessageButtonColor = UIColor.cornflowerBlue
+    var homeMessageButtonTextColor = UIColor.white
+    var homeMessageDismissButtonColor = UIColor.white
+
 }

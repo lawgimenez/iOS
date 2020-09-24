@@ -22,9 +22,7 @@ import UIKit
 class PositiveFeedbackViewController: UIViewController {
     
     @IBOutlet weak var headerText: UILabel!
-    @IBOutlet weak var supplementaryText: UILabel!
     
-    @IBOutlet weak var rateAppButton: UIButton!
     @IBOutlet weak var leaveFeedbackButton: UIButton!
     @IBOutlet weak var doneButton: UIButton!
 
@@ -39,9 +37,7 @@ class PositiveFeedbackViewController: UIViewController {
     
     private func configureLabels() {
         headerText.setAttributedTextString(UserText.feedbackPositiveHeader)
-        supplementaryText.setAttributedTextString(UserText.feedbackPositiveSupplementary)
         
-        rateAppButton.setTitle(UserText.feedbackPositiveRate, for: .normal)
         leaveFeedbackButton.setTitle(UserText.feedbackPositiveShare, for: .normal)
         doneButton.setTitle(UserText.feedbackPositiveNoThanks, for: .normal)
     }
@@ -49,16 +45,7 @@ class PositiveFeedbackViewController: UIViewController {
     private func configureButtons() {
         leaveFeedbackButton.layer.borderWidth = 1
     }
-    
-    @IBAction func rateAppButtonPressed() {
-        FeedbackSubmitter().firePositiveSentimentPixel()
         
-        let urlStr = "itms-apps://itunes.apple.com/us/app/duckduckgo-privacy-browser/id663592361?action=write-review"
-
-        UIApplication.shared.open(URL(string: urlStr)!)
-        dismiss(animated: true, completion: nil)
-    }
-    
     @IBAction func doneButtonPressed() {
         FeedbackSubmitter().firePositiveSentimentPixel()
         dismiss(animated: true, completion: nil)
@@ -84,10 +71,6 @@ extension PositiveFeedbackViewController: Themable {
         view.backgroundColor = theme.backgroundColor
         
         headerText.textColor = theme.feedbackPrimaryTextColor
-        supplementaryText.textColor = theme.feedbackSecondaryTextColor
-        
-        rateAppButton.setTitleColor(UIColor.white, for: .normal)
-        rateAppButton.tintColor = theme.buttonTintColor
         
         leaveFeedbackButton.setTitleColor(theme.buttonTintColor, for: .normal)
         leaveFeedbackButton.layer.borderColor = theme.buttonTintColor.cgColor

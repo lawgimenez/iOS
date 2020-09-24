@@ -1,3 +1,1 @@
-• Adding a bookmark is now a one-step process.
-• We display full desktop websites on iPad.
-• Other bug fixes and improvements.
+• Now users can initiate setting DuckDuckGo as their default browser right from within the app! We're adding an in app message, but you can also find the option in Settings.

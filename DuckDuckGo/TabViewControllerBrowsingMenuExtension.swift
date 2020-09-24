@@ -43,9 +43,14 @@ extension TabViewController {
                 alert.addAction(action)
             }
 
+            if let action = buildKeepSignInAction(forLink: link) {
+                alert.addAction(action)
+            }
+
             alert.addAction(title: UserText.actionShare) { [weak self] in
                 guard let self = self else { return }
-                self.onShareAction(forLink: link, printFormatter: self.webView.viewPrintFormatter())
+                guard let menu = self.chromeDelegate?.omniBar.menuButton else { return }
+                self.onShareAction(forLink: link, fromView: menu)
             }
             
             let title = tabModel.isDesktop ? UserText.actionRequestMobileSite : UserText.actionRequestDesktopSite
@@ -55,7 +60,7 @@ extension TabViewController {
         }
         
         if let domain = siteRating?.domain {
-            alert.addAction(buildWhitelistAction(forDomain: domain))
+            alert.addAction(buildToggleProtectionAction(forDomain: domain))
         }
         
         alert.addAction(title: UserText.actionReportBrokenSite) { [weak self] in
@@ -66,6 +71,15 @@ extension TabViewController {
         }
         alert.addAction(title: UserText.actionCancel, style: .cancel)
         return alert
+    }
+    
+    private func buildKeepSignInAction(forLink link: Link) -> UIAlertAction? {
+        guard #available(iOS 13, *) else { return nil }
+        guard let domain = link.url.host, !appUrls.isDuckDuckGo(url: link.url) else { return nil }
+        guard !PreserveLogins.shared.isAllowed(cookieDomain: domain) else { return nil }
+        return UIAlertAction(title: UserText.preserveLoginsFireproofConfirm, style: .default) { [weak self] _ in
+            self?.fireproofWebsite(domain: domain)
+        }
     }
     
     private func onNewTabAction() {
@@ -92,8 +106,6 @@ extension TabViewController {
     }
     
     private func buildSaveFavoriteAction(forLink link: Link) -> UIAlertAction? {
-        guard AppDependencyProvider.shared.appSettings.homePage == .centerSearchAndFavorites else { return nil }
-        
         let bookmarksManager = BookmarksManager()
         guard !bookmarksManager.contains(url: link.url) else { return nil }
 
@@ -104,17 +116,16 @@ extension TabViewController {
         }
     }
 
-    private func onShareAction(forLink link: Link, printFormatter: UIPrintFormatter) {
+    func onShareAction(forLink link: Link, fromView view: UIView) {
         Pixel.fire(pixel: .browsingMenuShare)
-        guard let menu = chromeDelegate?.omniBar.menuButton else { return }
         let url = appUrls.removeATBAndSource(fromUrl: link.url)
-        presentShareSheet(withItems: [ url, link, printFormatter ], fromView: menu)
+        presentShareSheet(withItems: [ url, link, webView.viewPrintFormatter() ], fromView: view)
     }
     
     private func onToggleDesktopSiteAction(forUrl url: URL) {
         Pixel.fire(pixel: .browsingMenuToggleBrowsingMode)
         tabModel.toggleDesktopMode()
-        updateUserAgent()
+        updateContentMode()
         tabModel.isDesktop ? load(url: url.toDesktopUrl()) : reload(scripts: false)
     }
     
@@ -128,14 +139,24 @@ extension TabViewController {
         delegate?.tabDidRequestSettings(tab: self)
     }
     
-    private func buildWhitelistAction(forDomain domain: String) -> UIAlertAction {
-        let whitelistManager = WhitelistManager()
-        let whitelisted = whitelistManager.isWhitelisted(domain: domain)
-        let title = whitelisted ? UserText.actionRemoveFromWhitelist : UserText.actionAddToWhitelist
-        let operation = whitelisted ? whitelistManager.remove : whitelistManager.add
+    private func buildToggleProtectionAction(forDomain domain: String) -> UIAlertAction {
+        let manager = UnprotectedSitesManager()
+        let isProtected = manager.isProtected(domain: domain)
+        let title = isProtected ? UserText.actionDisableProtection : UserText.actionEnableProtection
+        let operation = isProtected ? manager.add : manager.remove
         
         return UIAlertAction(title: title, style: .default) { _ in
-            Pixel.fire(pixel: whitelisted ?.browsingMenuWhitelistRemove : .browsingMenuWhitelistAdd)
+            
+            let window = UIApplication.shared.keyWindow
+            window?.hideAllToasts()
+            
+            if isProtected {
+               window?.showBottomToast(UserText.toastProtectionDisabled.format(arguments: domain), duration: 1)
+            } else {
+                window?.showBottomToast(UserText.toastProtectionEnabled.format(arguments: domain), duration: 1)
+            }
+            
+            Pixel.fire(pixel: isProtected ? .browsingMenuDisableProtection : .browsingMenuEnableProtection)
             operation(domain)
         }
     }

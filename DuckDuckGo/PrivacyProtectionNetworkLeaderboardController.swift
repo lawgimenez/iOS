@@ -28,13 +28,15 @@ class PrivacyProtectionNetworkLeaderboardController: UIViewController {
     @IBOutlet weak var resetButton: UIButton!
     @IBOutlet weak var domainLabel: UILabel!
     @IBOutlet weak var messageLabel: UILabel!
+    @IBOutlet weak var backButton: UIButton!
 
     @IBOutlet weak var inlineResetContainer: UIView!
     @IBOutlet weak var hoveringResetContainer: UIView!
     @IBOutlet weak var hoveringView: UIView!
     @IBOutlet weak var resetView: UIView!
+    @IBOutlet weak var resetViewInfo: UILabel!
 
-    private var contentBlockerConfiguration = AppDependencyProvider.shared.storageCache.current.configuration
+    private var protectionStore = AppDependencyProvider.shared.storageCache.current.protectionStore
     private var siteRating: SiteRating!
 
     let leaderboard = NetworkLeaderboard.shared
@@ -51,6 +53,7 @@ class PrivacyProtectionNetworkLeaderboardController: UIViewController {
         initHeroIcon()
         initResetButton()
         initDrama()
+        initBackButton()
         update()
 
     }
@@ -79,11 +82,12 @@ class PrivacyProtectionNetworkLeaderboardController: UIViewController {
             hoveringResetContainer.addSubview(resetView)
         }
 
+        resetViewInfo.setAttributedTextString(UserText.ppTopOffendersInfo)
     }
 
     private func initHeroIcon() {
-        let resultImage = siteRating.networksSuccess(configuration: contentBlockerConfiguration) ? #imageLiteral(resourceName: "PP Hero Leaderboard On") : #imageLiteral(resourceName: "PP Hero Leaderboard Bad")
-        heroIconImage.image = siteRating.protecting(contentBlockerConfiguration) ? resultImage : #imageLiteral(resourceName: "PP Hero Leaderboard Off")
+        let resultImage = siteRating.networksSuccess(protectionStore: protectionStore) ? #imageLiteral(resourceName: "PP Hero Leaderboard On") : #imageLiteral(resourceName: "PP Hero Leaderboard Bad")
+        heroIconImage.image = siteRating.protecting(protectionStore) ? resultImage : #imageLiteral(resourceName: "PP Hero Leaderboard Off")
     }
 
     private func initTable() {
@@ -103,6 +107,10 @@ class PrivacyProtectionNetworkLeaderboardController: UIViewController {
         }
     }
 
+    private func initBackButton() {
+        backButton.isHidden = !isPad
+    }
+
     private func initMessageLabel() {
         let dateFormatter = DateFormatter()
         dateFormatter.dateStyle = .medium
@@ -110,7 +118,7 @@ class PrivacyProtectionNetworkLeaderboardController: UIViewController {
         let dateText = dateFormatter.string(from: date)
 
         let percent = pagesVisited == 0 ? 0 : 100 * pagesWithTrackers / pagesVisited
-        let percentText = "\(percent)%"
+        let percentText = "\(percent)"
         let message = UserText.ppNetworkLeaderboard.format(arguments: percentText, dateText)
 
         guard let percentRange = message.range(of: percentText) else { return }
@@ -162,6 +170,17 @@ class PrivacyProtectionNetworkLeaderboardController: UIViewController {
         })
     }
 
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        
+        if let header = tableView.tableHeaderView {
+            let newSize = header.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+            header.frame.size.height = newSize.height
+            DispatchQueue.main.async {
+                self.tableView.tableHeaderView = header
+            }
+        }
+    }
 }
 
 extension PrivacyProtectionNetworkLeaderboardController: UITableViewDataSource {
@@ -195,9 +214,9 @@ extension PrivacyProtectionNetworkLeaderboardController: UITableViewDataSource {
 
 extension PrivacyProtectionNetworkLeaderboardController: PrivacyProtectionInfoDisplaying {
 
-    func using(siteRating: SiteRating, configuration: ContentBlockerConfigurationStore) {
+    func using(siteRating: SiteRating, protectionStore: ContentBlockerProtectionStore) {
         self.siteRating = siteRating
-        self.contentBlockerConfiguration = configuration
+        self.protectionStore = protectionStore
         update()
     }
 

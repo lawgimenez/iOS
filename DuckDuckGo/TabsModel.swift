@@ -25,7 +25,8 @@ public class TabsModel: NSObject, NSCoding {
     private struct NSCodingKeys {
         static let legacyIndex = "currentIndex"
         static let currentIndex = "currentIndex2"
-        static let tabs = "tabs"
+        static let legacyTabs = "tabs"
+        static let tabs = "tabs2"
     }
 
     private(set) var currentIndex: Int
@@ -34,14 +35,24 @@ public class TabsModel: NSObject, NSCoding {
     var hasUnread: Bool {
         return tabs.contains(where: { !$0.viewed })
     }
-    
-    public init(tabs: [Tab] = [Tab()], currentIndex: Int = 0) {
-        self.tabs = tabs
+        
+    public init(tabs: [Tab] = [], currentIndex: Int = 0, desktop: Bool) {
+        self.tabs = tabs.isEmpty ? [Tab(desktop: desktop)] : tabs
         self.currentIndex = currentIndex
     }
 
     public convenience required init?(coder decoder: NSCoder) {
-        guard let tabs = decoder.decodeObject(forKey: NSCodingKeys.tabs) as? [Tab], !tabs.isEmpty else { return nil }
+        // we migrated tabs to support uid
+        let storedTabs: [Tab]?
+        if let legacyTabs = decoder.decodeObject(forKey: NSCodingKeys.legacyTabs) as? [Tab], !legacyTabs.isEmpty {
+            storedTabs = legacyTabs
+        } else {
+            storedTabs = decoder.decodeObject(forKey: NSCodingKeys.tabs) as? [Tab]
+        }
+        
+        guard let tabs = storedTabs else {
+            return nil
+        }
 
         // we migrated from an optional int to an actual int
         var currentIndex = 0
@@ -54,7 +65,7 @@ public class TabsModel: NSObject, NSCoding {
         if currentIndex < 0 || currentIndex >= tabs.count {
             currentIndex = 0
         }
-        self.init(tabs: tabs, currentIndex: currentIndex)
+        self.init(tabs: tabs, currentIndex: currentIndex, desktop: UIDevice.current.userInterfaceIdiom == .pad)
     }
 
     public func encode(with coder: NSCoder) {

@@ -31,6 +31,9 @@ protocol Theme {
     var currentImageSet: ThemeManager.ImageSet { get }
     var statusBarStyle: UIStatusBarStyle { get }
     var keyboardAppearance: UIKeyboardAppearance { get }
+
+    var tabsBarBackgroundColor: UIColor { get }
+    var tabsBarSeparatorColor: UIColor { get } 
     
     var backgroundColor: UIColor { get }
     
@@ -65,6 +68,11 @@ protocol Theme {
     var tableCellHighlightedBackgroundColor: UIColor { get }
     var tableHeaderTextColor: UIColor { get }
     
+    var tabSwitcherCellBackgroundColor: UIColor { get }
+    var tabSwitcherCellBorderColor: UIColor { get }
+    var tabSwitcherCellTextColor: UIColor { get }
+    var tabSwitcherCellSecondaryTextColor: UIColor { get }
+    
     var iconCellBorderColor: UIColor { get }
     
     var buttonTintColor: UIColor { get }
@@ -97,4 +105,17 @@ protocol Theme {
     var activityStyle: UIActivityIndicatorView.Style { get }
     
     var destructiveColor: UIColor { get }
+    
+    var ddgTextTintColor: UIColor { get }
+    
+    var daxDialogBackgroundColor: UIColor { get }
+    var daxDialogTextColor: UIColor { get }
+    
+    var homeMessageBackgroundColor: UIColor { get }
+    var homeMessageHeaderTextColor: UIColor { get }
+    var homeMessageSubheaderTextColor: UIColor { get }
+    var homeMessageTopTextColor: UIColor { get }
+    var homeMessageButtonColor: UIColor { get }
+    var homeMessageButtonTextColor: UIColor { get }
+    var homeMessageDismissButtonColor: UIColor { get }
 }

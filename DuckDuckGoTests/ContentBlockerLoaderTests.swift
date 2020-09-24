@@ -65,17 +65,17 @@ class ContentBlockerLoaderTests: XCTestCase {
         
         XCTAssertEqual(mockEtagStorage.etags[.trackerDataSet], "test")
         XCTAssertEqual(mockEtagStorage.etags[.surrogates], "old")
-        XCTAssertEqual(mockEtagStorage.etags[.temporaryWhitelist], nil)
+        XCTAssertEqual(mockEtagStorage.etags[.temporaryUnprotectedSites], nil)
         
         loader.applyUpdate(to: mockStorageCache)
         
         XCTAssertEqual(mockEtagStorage.etags[.trackerDataSet], "test")
         XCTAssertEqual(mockEtagStorage.etags[.surrogates], "test")
-        XCTAssertEqual(mockEtagStorage.etags[.temporaryWhitelist], "test")
+        XCTAssertEqual(mockEtagStorage.etags[.temporaryUnprotectedSites], "test")
 
         XCTAssertNil(mockStorageCache.processedUpdates[.trackerDataSet])
         XCTAssertNotNil(mockStorageCache.processedUpdates[.surrogates])
-        XCTAssertNotNil(mockStorageCache.processedUpdates[.temporaryWhitelist])
+        XCTAssertNotNil(mockStorageCache.processedUpdates[.temporaryUnprotectedSites])
     }
 
     func testWhenEtagIsMissingThenResponseIsStored() {
@@ -138,6 +138,10 @@ class MockFileStore: FileStore {
         return nil
     }
     
+    override func hasData(forConfiguration config: ContentBlockerRequest.Configuration) -> Bool {
+        return false
+    }
+    
 }
 
 class MockEtagStorage: BlockerListETagStorage {
@@ -159,8 +163,7 @@ class MockContenBlockingRequest: ContentBlockerRemoteDataSource {
     
     func request(_ configuration: ContentBlockerRequest.Configuration, completion: @escaping (ContentBlockerRequest.Response) -> Void) {
         guard let response = mockResponse else {
-            XCTFail("No mock response set")
-            return
+            fatalError("No mock response set")
         }
         requestCount += 1
         
@@ -174,7 +177,7 @@ class MockStorageCache: StorageCacheUpdating {
     
     var shouldFail = false
     
-    func update(_ configuration: ContentBlockerRequest.Configuration, with data: Any) -> Bool {
+    func update(_ configuration: ContentBlockerRequest.Configuration, with data: Any, etag: String?) -> Bool {
         processedUpdates[configuration] = data
         return !shouldFail
     }

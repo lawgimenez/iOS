@@ -26,6 +26,7 @@ protocol PrivacyProtectionDelegate: class {
 
     func reload(scripts: Bool)
 
+    func getCurrentWebsiteInfo() -> BrokenSiteInfo
 }
 
 class PrivacyProtectionController: ThemableNavigationController {
@@ -36,7 +37,7 @@ class PrivacyProtectionController: ThemableNavigationController {
     weak var siteRating: SiteRating?
     var omniBarText: String?
     var errorText: String?
-
+  
     private var storageCache = AppDependencyProvider.shared.storageCache.current
 
     override func viewDidLoad() {
@@ -46,7 +47,8 @@ class PrivacyProtectionController: ThemableNavigationController {
             overrideUserInterfaceStyle = .light
         }
 
-        navigationBar.isHidden = isPad
+        navigationBar.isHidden = AppWidthObserver.shared.isLargeWidth
+        
         popoverPresentationController?.backgroundColor = UIColor.nearlyWhite
 
         if let errorText = errorText {
@@ -103,7 +105,7 @@ class PrivacyProtectionController: ThemableNavigationController {
 
         viewControllers.forEach {
             guard let infoDisplaying = $0 as? PrivacyProtectionInfoDisplaying else { return }
-            infoDisplaying.using(siteRating: siteRating, configuration: storageCache.configuration)
+            infoDisplaying.using(siteRating: siteRating, protectionStore: storageCache.protectionStore)
         }
     }
 

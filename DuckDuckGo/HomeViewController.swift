@@ -28,34 +28,29 @@ class HomeViewController: UIViewController {
     @IBOutlet weak var collectionView: HomeCollectionView!
     @IBOutlet weak var settingsButton: UIButton!
     
-    var statusBarBackground: UIView? {
-        return (parent as? MainViewController)?.statusBarBackground
-    }
-
-    var navigationBar: UIView? {
-        return (parent as? MainViewController)?.customNavigationBar
-    }
+    @IBOutlet weak var daxDialogContainer: UIView!
+    @IBOutlet weak var daxDialogContainerHeight: NSLayoutConstraint!
+    weak var daxDialogViewController: DaxDialogViewController?
     
-    var bottomOffset: CGFloat {
-        // doesn't take in to account extra space on iPhone X but is good enough to show the bottom items in the collection view
-        return ((parent as? MainViewController)?.toolbar.frame.height ?? 0)
+    var logoContainer: UIView! {
+        return delegate?.homeDidRequestLogoContainer(self)
     }
-
+ 
     var searchHeaderTransition: CGFloat = 0.0 {
         didSet {
             let percent = searchHeaderTransition > 0.99 ? searchHeaderTransition : 0.0
-            
+
             // hide the keyboard if transitioning away
             if oldValue == 1.0 && searchHeaderTransition != 1.0 {
                 chromeDelegate?.omniBar.resignFirstResponder()
             }
             
-            statusBarBackground?.alpha = percent
+            delegate?.home(self, searchTransitionUpdated: percent)
             chromeDelegate?.omniBar.alpha = percent
-            navigationBar?.alpha = percent
+            chromeDelegate?.tabsBar.alpha = percent
         }
     }
-
+    
     weak var delegate: HomeControllerDelegate?
     weak var chromeDelegate: BrowserChromeDelegate?
     
@@ -76,8 +71,12 @@ class HomeViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(HomeViewController.onKeyboardChangeFrame),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
 
-        collectionView.configure(withController: self, andTheme: ThemeManager.shared.currentTheme)
+        configureCollectionView()
         applyTheme(ThemeManager.shared.currentTheme)
+    }
+    
+    func configureCollectionView() {
+        collectionView.configure(withController: self, andTheme: ThemeManager.shared.currentTheme)
     }
     
     func enableContentUnderflow() -> CGFloat {
@@ -106,26 +105,68 @@ class HomeViewController: UIViewController {
     
     func openedAsNewTab() {
         collectionView.openedAsNewTab()
+        showNextDaxDialog()
     }
     
     @IBAction func launchSettings() {
         delegate?.showSettings(self)
     }
     
-    func launchPrivacyReport() {
-        delegate?.showPrivacyReport(self)
-    }
-    
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         
-        Pixel.fire(pixel: .homeScreenShown)
-        installHomeScreenTips()
+        if presentedViewController == nil { // prevents these being called when settings forces this controller to be reattached
+            showNextDaxDialog()
+            Pixel.fire(pixel: .homeScreenShown)
+            
+            if collectionView.isShowingHomeMessage(.defaultBrowserPrompt) {
+                Pixel.fire(pixel: .defaultBrowserHomeMessageShown)
+            }
+        }
+                
         viewHasAppeared = true
     }
     
-    func prepareForPresentation() {
-        installHomeScreenTips()
+    var isShowingDax: Bool {
+        return !daxDialogContainer.isHidden
+    }
+        
+    func showNextDaxDialog() {
+        guard let spec = DaxDialogs().nextHomeScreenMessage() else { return }
+        collectionView.isHidden = true
+        daxDialogContainer.isHidden = false
+        daxDialogContainer.alpha = 0.0
+        daxDialogViewController?.loadViewIfNeeded()
+        daxDialogViewController?.message = spec.message
+        daxDialogContainerHeight.constant = daxDialogViewController?.calculateHeight() ?? 0
+        hideLogo()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            UIView.animate(withDuration: 0.4, animations: {
+                self.daxDialogContainer.alpha = 1.0
+            }, completion: { _ in
+                self.daxDialogViewController?.start()
+            })
+        }
+
+        configureCollectionView()
+    }
+
+    func hideLogo() {
+        delegate?.home(self, didRequestHideLogo: true)
+    }
+    
+    func onboardingCompleted() {
+        showNextDaxDialog()
+    }
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        super.prepare(for: segue, sender: sender)
+        
+        if segue.destination is DaxDialogViewController {
+            self.daxDialogViewController = segue.destination as? DaxDialogViewController
+        }
+        
     }
 
     @IBAction func hideKeyboard() {
@@ -175,7 +216,16 @@ extension HomeViewController: FavoritesHomeViewSectionRendererDelegate {
     
     func favoritesRenderer(_ renderer: FavoritesHomeViewSectionRenderer, didSelect link: Link) {
         Pixel.fire(pixel: .homeScreenFavouriteLaunched)
+        Favicons.shared.loadFavicon(forDomain: link.url.host, intoCache: .bookmarks, fromCache: .tabs)
         delegate?.home(self, didRequestUrl: link.url)
+    }
+
+}
+
+extension HomeViewController: HomeMessageViewSectionRendererDelegate {
+    
+    func homeMessageRenderer(_ renderer: HomeMessageViewSectionRenderer, didDismissHomeMessage homeMessage: HomeMessage) {
+        refresh()
     }
 }
 
@@ -183,7 +233,6 @@ extension HomeViewController: Themable {
 
     func decorate(with theme: Theme) {
         collectionView.decorate(with: theme)
-        view.backgroundColor = theme.backgroundColor
-        settingsButton.tintColor = theme.barTintColor        
+        settingsButton.tintColor = theme.barTintColor
     }
 }

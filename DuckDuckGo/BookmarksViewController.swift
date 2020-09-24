@@ -30,7 +30,7 @@ class BookmarksViewController: UITableViewController {
     private lazy var appSettings = AppDependencyProvider.shared.appSettings
 
     fileprivate lazy var dataSource: BookmarksDataSource = {
-        return appSettings.homePage == .centerSearchAndFavorites ? BookmarksAndFavoritesDataSource() : BookmarksDataSource()
+        return BookmarksDataSource()
     }()
     
     override func viewDidLoad() {
@@ -51,7 +51,6 @@ class BookmarksViewController: UITableViewController {
         }
     }
     
-    @available(iOS 11.0, *)
     override func tableView(_ tableView: UITableView, leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         let shareContextualAction = UIContextualAction(style: .normal, title: UserText.actionShare) { (_, _, completionHandler) in
             self.showShareSheet(for: indexPath)

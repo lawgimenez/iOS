@@ -29,12 +29,16 @@ extension String {
     public func length() -> Int {
         return count
     }
+    
+    public var fullRange: NSRange {
+        return NSRange(location: 0, length: count)
+    }
 
     public func matches(pattern: String) -> Bool {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
             return false
         }
-        let matches = regex.matches(in: self, options: .anchored, range: NSRange(location: 0, length: count))
+        let matches = regex.matches(in: self, options: .anchored, range: fullRange)
         return matches.count == 1
     }
 
@@ -103,5 +107,12 @@ extension String {
             .map { $0.idnaEncoded ?? $0 }
             .joined(separator: ".")
     }
-    
+
+    public func sha256() -> String {
+        if let stringData = self.data(using: String.Encoding.utf8) {
+            return stringData.sha256
+        }
+        return ""
+    }
+
 }

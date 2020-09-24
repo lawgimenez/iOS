@@ -19,7 +19,6 @@
 
 import UIKit
 import Core
-import Kingfisher
 
 protocol TabViewCellDelegate: class {
 
@@ -29,19 +28,11 @@ protocol TabViewCellDelegate: class {
     
 }
 
-class TabViewCell: UICollectionViewCell {
-
-    struct Constants {
-        
-        static let selectedBorderWidth: CGFloat = 2.0
-        static let unselectedBorderWidth: CGFloat = 0.0
-        static let selectedAlpha: CGFloat = 1.0
-        static let unselectedAlpha: CGFloat = 0.92
-        static let swipeToDeleteAlpha: CGFloat = 0.5
-        
-    }
+class TabViewCell: UICollectionViewCell, Themable {
     
-    static let reuseIdentifier = "TabCell"
+    struct Constants {
+        static let swipeToDeleteAlpha: CGFloat = 0.5
+    }
 
     var removeThreshold: CGFloat {
         return frame.width / 3
@@ -52,19 +43,28 @@ class TabViewCell: UICollectionViewCell {
     var isCurrent = false
     var isDeleting = false
     var canDelete = false
-
-    @IBOutlet weak var background: UIView!
-    @IBOutlet weak var favicon: UIImageView!
-    @IBOutlet weak var title: UILabel!
-    @IBOutlet weak var link: UILabel!
-    @IBOutlet weak var removeButton: UIButton!
-    @IBOutlet weak var unread: UIView!
+    
+    weak var collectionReorderRecognizer: UIGestureRecognizer?
 
     override func awakeFromNib() {
         super.awakeFromNib()
         let recognizer = UIPanGestureRecognizer(target: self, action: #selector(handleSwipe(recognizer:)))
         recognizer.delegate = self
         addGestureRecognizer(recognizer)
+        
+        setupSubviews()
+    }
+    
+    func setupSubviews() {
+        backgroundColor = .clear
+        layer.cornerRadius = backgroundView?.layer.cornerRadius ?? 0.0
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+        layer.shadowRadius = 3.0
+        layer.shadowOpacity = 0.15
+        layer.masksToBounds = false
+        layer.shouldRasterize = true
+        layer.rasterizationScale = UIScreen.main.scale
     }
 
     var startX: CGFloat = 0
@@ -79,7 +79,7 @@ class TabViewCell: UICollectionViewCell {
 
         case .changed:
             let offset = max(0, startX - currentLocation.x)
-            transform = CGAffineTransform.identity.translatedBy(x: -offset, y: 0)            
+            transform = CGAffineTransform.identity.translatedBy(x: -offset, y: 0)
             if diff > removeThreshold {
                 if !canDelete {
                     makeTranslucent()
@@ -108,7 +108,6 @@ class TabViewCell: UICollectionViewCell {
         default: break
 
         }
-
     }
     
     private func makeTranslucent() {
@@ -139,80 +138,16 @@ class TabViewCell: UICollectionViewCell {
         }
     }
 
-    func update(withTab tab: Tab) {
-        accessibilityElements = [ title as Any, removeButton as Any ]
-        
-        removeTabObserver()
-        tab.addObserver(self)
-        self.tab = tab
-
-        if !isDeleting {
-            isHidden = false
-        }
-        isCurrent = delegate?.isCurrent(tab: tab) ?? false
-        
-        background.layer.borderWidth = isCurrent ? Constants.selectedBorderWidth : Constants.unselectedBorderWidth
-        background.layer.borderColor = UIColor.cornflowerBlue.cgColor
-        background.alpha = isCurrent ? Constants.selectedAlpha : Constants.unselectedAlpha
-
-        if let link = tab.link {
-            removeButton.accessibilityLabel = UserText.closeTab(withTitle: link.displayTitle ?? "", atAddress: link.url.host ?? "")
-            title.accessibilityLabel = UserText.openTab(withTitle: link.displayTitle ?? "", atAddress: link.url.host ?? "")
-            title.text = tab.link?.displayTitle
-        }
-        
-        unread.isHidden = tab.viewed
-
-        if tab.link == nil {
-            var linkText = UserText.homeTabSearchOnly
-            for component in AppDependencyProvider.shared.appSettings.homePage.components() {
-                switch component {
-                case .favorites:
-                    linkText = UserText.homeTabSearchAndFavorites
-                default: break
-                }
-            }
-
-            title.text = UserText.homeTabTitle
-            link.text = linkText
-            favicon.image = UIImage(named: "Logo")
-        } else {
-            removeButton.isHidden = false
-            link.text = tab.link?.url.absoluteString ?? ""
-            configureFavicon(forDomain: tab.link?.url.host)
-        }
-    }
-
-    private func removeTabObserver() {
-        tab?.removeObserver(self)
-    }
+    func update(withTab tab: Tab,
+                preview: UIImage?,
+                reorderRecognizer: UIGestureRecognizer?) {}
     
     @IBAction func deleteTab() {
         guard let tab = tab else { return }
         self.delegate?.deleteTab(tab: tab)
     }
-
-    private func configureFavicon(forDomain domain: String?) {
-        let placeholder = #imageLiteral(resourceName: "GlobeSmall")
-        favicon.image = placeholder
-
-        if let domain = domain {
-            let faviconUrl = AppUrls().faviconUrl(forDomain: domain)
-            favicon.kf.setImage(with: faviconUrl,
-                                  placeholder: placeholder,
-                                  options: [.downloader(NotFoundCachingDownloader())],
-                                  progressBlock: nil,
-                                  completionHandler: nil)
-        }
-    }
-}
-
-extension TabViewCell: TabObserver {
     
-    func didChange(tab: Tab) {
-        update(withTab: tab)
-    }
-    
+    func decorate(with theme: Theme) {}
 }
 
 extension TabViewCell: UIGestureRecognizerDelegate {
@@ -226,6 +161,13 @@ extension TabViewCell: UIGestureRecognizerDelegate {
         guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
         let velocity = pan.velocity(in: self)
         return abs(velocity.y) < abs(velocity.x)
+    }
+    
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard otherGestureRecognizer == collectionReorderRecognizer else {
+            return false
+        }
+        return true
     }
     
 }

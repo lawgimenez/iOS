@@ -27,9 +27,10 @@ class PrivacyProtectionTrackerNetworksController: UIViewController {
     @IBOutlet weak var subtitleLabel: UILabel!
     @IBOutlet weak var messageLabel: UILabel!
     @IBOutlet weak var tableView: UITableView!
+    @IBOutlet weak var backButton: UIButton!
 
     private var siteRating: SiteRating!
-    private var contentBlockerConfiguration = AppDependencyProvider.shared.storageCache.current.configuration
+    private var protectionStore = AppDependencyProvider.shared.storageCache.current.protectionStore
 
     struct Section {
 
@@ -59,6 +60,7 @@ class PrivacyProtectionTrackerNetworksController: UIViewController {
         Pixel.fire(pixel: .privacyDashboardNetworks)
         
         initTableView()
+        initUI()
         update()
     }
 
@@ -74,10 +76,11 @@ class PrivacyProtectionTrackerNetworksController: UIViewController {
         updateSubtitle()
         updateIcon()
         tableView.reloadData()
+        tableView.setNeedsLayout()
     }
 
     private func trackers() -> [DetectedTracker] {
-        let protecting = siteRating.protecting(contentBlockerConfiguration)
+        let protecting = siteRating.protecting(protectionStore)
         return [DetectedTracker](protecting ? siteRating.trackersBlocked : siteRating.trackersDetected)
     }
 
@@ -86,7 +89,7 @@ class PrivacyProtectionTrackerNetworksController: UIViewController {
     }
 
     private func updateSubtitle() {
-        subtitleLabel.text = siteRating.networksText(configuration: contentBlockerConfiguration).uppercased()
+        subtitleLabel.text = siteRating.networksText(protectionStore: protectionStore).uppercased()
     }
 
     private func updateIcon() {
@@ -104,10 +107,26 @@ class PrivacyProtectionTrackerNetworksController: UIViewController {
         tableView.dataSource = self
     }
 
-    private func protecting() -> Bool {
-        return siteRating.protecting(contentBlockerConfiguration)
+    private func initUI() {
+        messageLabel.setAttributedTextString(UserText.ppTrackerNetworksInfo)
+        backButton.isHidden = !isPad
     }
 
+    private func protecting() -> Bool {
+        return siteRating.protecting(protectionStore)
+    }
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        
+        if let header = tableView.tableHeaderView {
+            let newSize = header.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+            header.frame.size.height = newSize.height
+            DispatchQueue.main.async {
+                self.tableView.tableHeaderView = header
+            }
+        }
+    }
 }
 
 extension PrivacyProtectionTrackerNetworksController: UITableViewDelegate {
@@ -148,9 +167,9 @@ extension PrivacyProtectionTrackerNetworksController: UITableViewDataSource {
 
 extension PrivacyProtectionTrackerNetworksController: PrivacyProtectionInfoDisplaying {
 
-    func using(siteRating: SiteRating, configuration: ContentBlockerConfigurationStore) {
+    func using(siteRating: SiteRating, protectionStore: ContentBlockerProtectionStore) {
         self.siteRating = siteRating
-        self.contentBlockerConfiguration = configuration
+        self.protectionStore = protectionStore
         update()
     }
 
@@ -218,11 +237,8 @@ class PrivacyProtectionTrackerNetworksSectionCell: UITableViewCell {
 
     func update(withSection section: PrivacyProtectionTrackerNetworksController.Section) {
         nameLabel.text = section.name
-        if let image = UIImage(named: "PP Network Icon \(section.name.lowercased())") {
-            iconImage.image = image
-        } else {
-            iconImage.image = nil
-        }
+        iconImage.image = PrivacyProtectionIconSource.iconImageTemplate(forNetworkName: section.name.lowercased(),
+                                                                        iconSize: CGSize(width: 24, height: 24))
     }
 
 }

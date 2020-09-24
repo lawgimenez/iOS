@@ -18,11 +18,9 @@
 //
 
 import Core
-import Kingfisher
+import WidgetKit
 
 class BookmarksManager {
-
-    static let imageCacheName = "bookmarks"
 
     private var dataStore: BookmarkStore
 
@@ -54,10 +52,13 @@ class BookmarksManager {
 
     func save(bookmark: Link) {
         dataStore.addBookmark(bookmark)
+        Favicons.shared.loadFavicon(forDomain: bookmark.url.host, intoCache: .bookmarks, fromCache: .tabs)
     }
 
     func save(favorite: Link) {
         dataStore.addFavorite(favorite)
+        Favicons.shared.loadFavicon(forDomain: favorite.url.host, intoCache: .bookmarks, fromCache: .tabs)
+        reloadWidgets()
     }
 
     func moveFavorite(at favoriteIndex: Int, toBookmark bookmarkIndex: Int) {
@@ -74,6 +75,7 @@ class BookmarksManager {
         
         dataStore.bookmarks = bookmarks
         dataStore.favorites = favorites
+        reloadWidgets()
     }
 
     func moveFavorite(at fromIndex: Int, to toIndex: Int) {
@@ -81,6 +83,7 @@ class BookmarksManager {
         let link = favorites.remove(at: fromIndex)
         favorites.insert(link, at: toIndex)
         dataStore.favorites = favorites
+        reloadWidgets()
     }
     
     func moveBookmark(at bookmarkIndex: Int, toFavorite favoriteIndex: Int) {
@@ -97,6 +100,7 @@ class BookmarksManager {
         
         dataStore.bookmarks = bookmarks
         dataStore.favorites = favorites
+        reloadWidgets()
     }
     
     func moveBookmark(at fromIndex: Int, to toIndex: Int) {
@@ -107,33 +111,57 @@ class BookmarksManager {
     }
 
     func deleteBookmark(at index: Int) {
+        let link = bookmark(atIndex: index)
         var bookmarks = dataStore.bookmarks
-        bookmarks[index].removeCachedFavicon()
         bookmarks.remove(at: index)
         dataStore.bookmarks = bookmarks
+        removeFavicon(forLink: link)
     }
 
     func deleteFavorite(at index: Int) {
+        let link = favorite(atIndex: index)
         var favorites = dataStore.favorites
-        favorites[index].removeCachedFavicon()
         favorites.remove(at: index)
         dataStore.favorites = favorites
+        removeFavicon(forLink: link)
+        reloadWidgets()
+    }
+
+    func removeFavicon(forLink link: Link?) {
+        guard let domain = link?.url.host else { return }
+        let favorites = dataStore.favorites
+        let bookmarks = dataStore.bookmarks
+        DispatchQueue.global(qos: .background).async {
+            let matchesDomain: ((Link) -> Bool) = { $0.url.host == domain }
+            if !favorites.contains(where: matchesDomain) && !bookmarks.contains(where: matchesDomain) {
+                Favicons.shared.removeBookmarkFavicon(forDomain: domain)
+            }
+        }
     }
 
     func updateFavorite(at index: Int, with link: Link) {
         var favorites = dataStore.favorites
-        _ = favorites.remove(at: index)
+        let old = favorites.remove(at: index)
         favorites.insert(link, at: index)
         dataStore.favorites = favorites
+        updateFaviconIfNeeded(old, link)
+        reloadWidgets()
     }
 
     func updateBookmark(at index: Int, with link: Link) {
         var bookmarks = dataStore.bookmarks
-        _ = bookmarks.remove(at: index)
+        let old = bookmarks.remove(at: index)
         bookmarks.insert(link, at: index)
         dataStore.bookmarks = bookmarks
+        updateFaviconIfNeeded(old, link)
     }
 
+    private func updateFaviconIfNeeded(_ old: Link, _ new: Link) {
+        guard old.url.host != new.url.host else { return }
+        removeFavicon(forLink: old)
+        Favicons.shared.loadFavicon(forDomain: new.url.host, intoCache: .bookmarks)
+    }
+    
     private func indexOfBookmark(url: URL) -> Int? {
         let bookmarks = dataStore.bookmarks
         return indexOf(url, in: bookmarks)
@@ -164,15 +192,11 @@ class BookmarksManager {
             moveFavorite(at: 0, toBookmark: 0)
         }
     }
-    
-}
 
-fileprivate extension Link {
-
-    func removeCachedFavicon() {
-        guard let domain = url.host else { return }
-        guard let url = AppUrls().faviconUrl(forDomain: domain) else { return }
-        ImageCache(name: BookmarksManager.imageCacheName).removeImage(forKey: url.absoluteString)
+    func reloadWidgets() {
+        if #available(iOS 14, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
 }

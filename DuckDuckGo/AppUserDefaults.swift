@@ -118,17 +118,6 @@ public class AppUserDefaults: AppSettings {
         
     }
     
-    var homePage: HomePageConfiguration.ConfigName {
-        get {
-            let index = userDefaults?.integer(forKey: Keys.homePage) ?? 0
-            return HomePageConfiguration.ConfigName(rawValue: index)!
-        }
-        
-        set {
-            userDefaults?.setValue(newValue.rawValue, forKey: Keys.homePage)
-        }
-    }
-    
     var allowUniversalLinks: Bool {
         get {
             return userDefaults?.object(forKey: Keys.allowUniversalLinks) as? Bool ?? true
@@ -206,16 +195,4 @@ extension AppUserDefaults: AppConfigurationFetchStatistics {
             userDefaults?.setValue(newValue, forKey: Keys.backgroundFetchNewDataCount)
         }
     }
-}
-
-extension AppUserDefaults: PrivacyStatsExperimentStore {
-    var privacyStatsPixelFired: Bool {
-        get {
-            return userDefaults?.bool(forKey: PixelName.homeScreenPrivacyStatsTapped.rawValue) ?? false
-        }
-        set {
-            userDefaults?.set(newValue, forKey: PixelName.homeScreenPrivacyStatsTapped.rawValue)
-        }
-    }
-    
 }

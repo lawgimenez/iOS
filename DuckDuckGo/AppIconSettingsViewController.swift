@@ -23,7 +23,7 @@ import Core
 class AppIconSettingsViewController: UICollectionViewController {
     
     let dataSource = AppIconDataSource()
-    let worker = AppIconWorker(context: .settings)
+    let worker = AppIconWorker()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -69,25 +69,14 @@ class AppIconDataSource: NSObject, UICollectionViewDataSource {
         cell.decorate(with: ThemeManager.shared.currentTheme)
 
         let appIcon = appIcons[indexPath.row]
-        cell.imageView.image = appIcon.mediumImage
+        cell.appIcon = appIcon
 
         return cell
     }
 }
 
 class AppIconWorker {
-    
-    enum Context: String {
-        case onboarding = "o"
-        case settings = "s"
-    }
-    
-    private let context: Context
-    
-    init(context: Context) {
-        self.context = context
-    }
-    
+        
     public func changeAppIcon(_ appIcon: AppIcon,
                               completion: @escaping (_ success: Bool) -> Void) {
         AppIconManager.shared.changeAppIcon(appIcon) { error in
@@ -112,8 +101,7 @@ class AppIconWorker {
             fatalError("Could not match AppIcon with Pixel")
         }
         
-        let params = ["context": context.rawValue]
-        Pixel.fire(pixel: pixel, withAdditionalParameters: params)
+        Pixel.fire(pixel: pixel)
     }
 }
 

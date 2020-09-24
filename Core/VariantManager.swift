@@ -24,30 +24,35 @@ public enum FeatureName: String {
 
     // Used for unit tests
     case dummy
-    
-    case appIconOnboarding
-    
-    case privacyOnHomeScreen
+     
 }
 
 public struct Variant {
     
+    struct When {
+        static let always = { return true }
+        static let padDevice = { return UIDevice.current.userInterfaceIdiom == .pad }
+        static let notPadDevice = { return !Self.padDevice() }
+
+        static let inRequiredCountry = { return ["AU", "AT", "DK", "FI", "FR", "DE", "IT", "IE", "NZ", "NO", "ES", "SE", "GB"]
+                .contains(where: { Locale.current.regionCode == $0 } ) }
+    }
+    
     static let doNotAllocate = 0
     
+    // Note: Variants with `doNotAllocate` weight, should always be included so that previous installations are unaffected
     public static let defaultVariants: [Variant] = [
-        // SERP testing
-        Variant(name: "sc", weight: doNotAllocate, features: []),
-        Variant(name: "sd", weight: doNotAllocate, features: []),
-        Variant(name: "se", weight: doNotAllocate, features: []),
-
-        Variant(name: "mq", weight: 1, features: []),
-        Variant(name: "mr", weight: 1, features: [.appIconOnboarding]),
         
-        Variant(name: "mp", weight: doNotAllocate, features: [ .privacyOnHomeScreen ])
+        // SERP testing
+        Variant(name: "sc", weight: 1, isIncluded: When.inRequiredCountry, features: []),
+        Variant(name: "sd", weight: doNotAllocate, isIncluded: When.always, features: []),
+        Variant(name: "se", weight: 1, isIncluded: When.inRequiredCountry, features: []),
+
     ]
     
     public let name: String
     public let weight: Int
+    public let isIncluded: () -> Bool
     public let features: [FeatureName]
 
 }
@@ -61,7 +66,7 @@ public protocol VariantRNG {
 public protocol VariantManager {
     
     var currentVariant: Variant? { get }
-    func assignVariantIfNeeded(_ newInstallCompletion: (VariantManager) -> Bool)
+    func assignVariantIfNeeded(_ newInstallCompletion: (VariantManager) -> Void)
     func isSupported(feature: FeatureName) -> Bool
     
 }
@@ -76,23 +81,20 @@ public class DefaultVariantManager: VariantManager {
     private let variants: [Variant]
     private let storage: StatisticsStore
     private let rng: VariantRNG
-    private let uiIdiom: UIUserInterfaceIdiom
     
     public init(variants: [Variant] = Variant.defaultVariants,
                 storage: StatisticsStore = StatisticsUserDefaults(),
-                rng: VariantRNG = Arc4RandomUniformVariantRNG(),
-                uiIdiom: UIUserInterfaceIdiom = UI_USER_INTERFACE_IDIOM()) {
+                rng: VariantRNG = Arc4RandomUniformVariantRNG()) {
         self.variants = variants
         self.storage = storage
         self.rng = rng
-        self.uiIdiom = uiIdiom
     }
 
     public func isSupported(feature: FeatureName) -> Bool {
         return currentVariant?.features.contains(feature) ?? false
     }
     
-    public func assignVariantIfNeeded(_ newInstallCompletion: (VariantManager) -> Bool) {
+    public func assignVariantIfNeeded(_ newInstallCompletion: (VariantManager) -> Void) {
         guard !storage.hasInstallStatistics else {
             os_log("no new variant needed for existing user", log: generalLog, type: .debug)
             return
@@ -105,13 +107,14 @@ public class DefaultVariantManager: VariantManager {
         
         guard let variant = selectVariant() else {
             os_log("Failed to assign variant", log: generalLog, type: .debug)
+            
+            // it's possible this failed because there are none to assign, we should still let new install logic execute
+            _ = newInstallCompletion(self)
             return
         }
         
         storage.variant = variant.name
-        if !newInstallCompletion(self) {
-            storage.variant = nil
-        }
+        newInstallCompletion(self)
     }
     
     private func selectVariant() -> Variant? {
@@ -122,7 +125,7 @@ public class DefaultVariantManager: VariantManager {
         for variant in variants {
             runningTotal += variant.weight
             if randomPercent < runningTotal {
-                return variant
+                return variant.isIncluded() ? variant : nil
             }
         }
         

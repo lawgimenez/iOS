@@ -34,15 +34,17 @@ class PrivacyProtectionEncryptionDetailController: UIViewController {
 
     @IBOutlet weak var tableView: UITableView!
     @IBOutlet weak var iconImage: UIImageView!
+    @IBOutlet weak var headerInfoLabel: UILabel!
     @IBOutlet weak var domainLabel: UILabel!
     @IBOutlet weak var encryptedLabel: UILabel!
     @IBOutlet weak var messageLabel: UILabel!
+    @IBOutlet weak var backButton: UIButton!
 
     private weak var siteRating: SiteRating!
 
     private let serverTrustCache = ServerTrustCache.shared
     private var sections = [Section]()
-
+ 
     override func viewDidLoad() {
 
         Pixel.fire(pixel: .privacyDashboardEncryption)
@@ -50,6 +52,7 @@ class PrivacyProtectionEncryptionDetailController: UIViewController {
         initTableView()
         initHttpsStatus()
         initDomain()
+        initBackButton()
         beginCertificateInfoExtraction()
 
     }
@@ -67,7 +70,12 @@ class PrivacyProtectionEncryptionDetailController: UIViewController {
         domainLabel.text = siteRating.domain
     }
 
+    private func initBackButton() {
+        backButton.isHidden = !isPad
+    }
+
     private func initHttpsStatus() {
+        headerInfoLabel.setAttributedTextString(UserText.ppEncryptionHeaderInfo)
 
         var message: String!
 
@@ -108,12 +116,24 @@ class PrivacyProtectionEncryptionDetailController: UIViewController {
             }
         }
     }
+    
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        
+        if let header = tableView.tableHeaderView {
+            let newSize = header.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+            header.frame.size.height = newSize.height
+            DispatchQueue.main.async {
+                self.tableView.tableHeaderView = header
+            }
+        }
+    }
 
 }
 
 extension PrivacyProtectionEncryptionDetailController: PrivacyProtectionInfoDisplaying {
 
-    func using(siteRating: SiteRating, configuration: ContentBlockerConfigurationStore) {
+    func using(siteRating: SiteRating, protectionStore: ContentBlockerProtectionStore) {
         self.siteRating = siteRating
     }
 
@@ -151,7 +171,7 @@ extension PrivacyProtectionEncryptionDetailController: UITableViewDataSource {
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        return siteRating.https ? 22 : 180
+        return UITableView.automaticDimension
     }
 
     private func cellForEncrypted(at indexPath: IndexPath) -> UITableViewCell {
@@ -185,6 +205,18 @@ class PrivacyProtectionEncryptionDetailCell: UITableViewCell {
     func update(name: String, value: String) {
         nameLabel.text = name
         valueLabel.text = value
+    }
+
+}
+
+class PrivacyProtectionEncryptionUnencrytedCell: UITableViewCell {
+
+    @IBOutlet weak var detailLabel: UILabel!
+
+    override func awakeFromNib() {
+        super.awakeFromNib()
+        
+        detailLabel.setAttributedTextString(UserText.ppEncryptionUnencryptedDetailInfo)
     }
 
 }

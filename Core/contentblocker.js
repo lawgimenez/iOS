@@ -19,6 +19,14 @@
 
 var duckduckgoContentBlocking = function() {
 
+   function trackerDetected(data) {
+       try {
+           webkit.messageHandlers.trackerDetectedMessage.postMessage(data);
+       } catch(error) {
+           // webkit might not be defined
+       }
+   }
+
     // tld.js
     var tldjs = {
 
@@ -34,7 +42,7 @@ var duckduckgoContentBlocking = function() {
                     domain: parsed.hostname,
                     hostname: parsed.hostname
                 }
-            } catch {
+            } catch(error) {
                 return {
                     domain: "",
                     hostname: ""
@@ -142,7 +150,7 @@ _utf8_encode : function (string) {
 
     // Buffer
     class Buffer {
-        
+
         static from(string, type) {
             return new Buffer(string);
         }
@@ -401,7 +409,7 @@ _utf8_encode : function (string) {
             return {action, reason}
         }
         }
-        
+
         if (typeof module !== 'undefined' && typeof module.exports !== 'undefined')
             module.exports = Trackers
         else
@@ -415,12 +423,12 @@ _utf8_encode : function (string) {
     ${surrogates}
     `
     // surrogates
-        
+
     // tracker data set
     let trackerData = ${trackerData}
     // tracker data set
 
-    // overrides    
+    // overrides
     Trackers.prototype.findTrackerOwner = function(domain) {
         var parts = domain.split(".")
         while (parts.length > 1) {
@@ -440,7 +448,7 @@ _utf8_encode : function (string) {
     });
 
     // update algorithm with the data it needs
-    trackers.setLists([{ 
+    trackers.setLists([{
             name: "tds",
             data: trackerData
         },
@@ -450,22 +458,22 @@ _utf8_encode : function (string) {
         }
     ]);
 
-	let topLevelUrl = getTopLevelURL();
+    let topLevelUrl = getTopLevelURL();
 
-    let whitelisted = `
-        ${whitelist}
+    let unprotectedDomain = `
+        ${unprotectedDomains}
     `.split("\n").filter(domain => domain.trim() == topLevelUrl.host).length > 0;
 
-	// private 
-	function getTopLevelURL() {
-		try {
-			// FROM: https://stackoverflow.com/a/7739035/73479
-			// FIX: Better capturing of top level URL so that trackers in embedded documents are not considered first party
-			return new URL(window.location != window.parent.location ? document.referrer : document.location.href)
-		} catch(error) {
-			return new URL(location.href)
-		}
-	}
+    // private
+    function getTopLevelURL() {
+        try {
+            // FROM: https://stackoverflow.com/a/7739035/73479
+            // FIX: Better capturing of top level URL so that trackers in embedded documents are not considered first party
+            return new URL(window.location != window.parent.location ? document.referrer : document.location.href)
+        } catch(error) {
+            return new URL(location.href)
+        }
+    }
 
     // private
     function loadSurrogate(surrogatePattern) {
@@ -479,62 +487,137 @@ _utf8_encode : function (string) {
         }
     }
 
-	// public
-	function shouldBlock(trackerUrl, type) {
+    // public
+    function shouldBlock(trackerUrl, type) {
         let startTime = performance.now()
-        
+
         let result = trackers.getTrackerData(trackerUrl.toString(), topLevelUrl.toString(), {
-        	type: type
+            type: type
         }, null);
 
-		if (result == null) {
+        if (result == null) {
             duckduckgoDebugMessaging.signpostEvent({event: "Request Allowed",
                                                    url: trackerUrl,
                                                    time: performance.now() - startTime})
-			return false;
-		}
+            return false;
+        }
 
-		var blocked = false;
-        if (whitelisted) {
-            blocked = false;
-            result.reason = "whitelisted";
-        } else if (result.action === 'block') {
-			blocked = true;
-		} else if (result.matchedRule && result.matchedRule.surrogate) {
-			blocked = true;
-		}
+        var blocked = false;
+        if (unprotectedDomain) {
+            result.reason = "unprotectedDomain";
+        } else if (result.action !== 'ignore') {
+            // other actions are "block" or "redirect" - anything that is not ignored should be blocked. Surrogates are handled below since
+            //  we can't do a redirect.
+            blocked = true;
+        }
 
-        duckduckgoMessaging.trackerDetected({
-	        url: trackerUrl,
-	        blocked: blocked,
-	        reason: result.reason,
+        trackerDetected({
+            url: trackerUrl,
+            blocked: blocked,
+            reason: result.reason,
+            isSurrogate: result.matchedRule && result.matchedRule.surrogate
         })
-        
-        if (blocked) {
 
-            if (result.matchedRule && result.matchedRule.surrogate) {
-            	loadSurrogate(result.matchedRule.surrogate)
-            }
+        // Tracker blocking is dealt with by content rules
+        // Only handle surrogates here
+        if (blocked && result.matchedRule && result.matchedRule.surrogate) {
+            loadSurrogate(result.matchedRule.surrogate)
 
             duckduckgoDebugMessaging.signpostEvent({event: "Tracker Blocked",
                                                    url: trackerUrl,
                                                    time: performance.now() - startTime})
-        } else {
+
+            return true
+        }
+        
+        if (!blocked) {
             duckduckgoDebugMessaging.signpostEvent({event: "Tracker Allowed",
-                                                   url: trackerUrl,
-                                                   reason: result.reason,
-                                                   time: performance.now() - startTime})
+                                                    url: trackerUrl,
+                                                    reason: result.reason,
+                                                    time: performance.now() - startTime})
+        }
+        
+        return false
+    }
+
+    // Init
+    (function() {
+        
+        duckduckgoDebugMessaging.log("installing beforeload detection")
+        document.addEventListener("beforeload", function(event) {
+
+            if (event.target.nodeName == "LINK") {
+                type = event.target.rel
+            } else if (event.target.nodeName == "IMG") {
+                type = "image"
+            } else if (event.target.nodeName == "IFRAME") {
+                type = "subdocument"
+            } else {
+                type = event.target.nodeName
+            }
+
+            duckduckgoDebugMessaging.log("checking " + event.url + " (" + type + ")");
+            if (shouldBlock(event.url, type)) {
+                duckduckgoDebugMessaging.log("blocking beforeload")
+                event.preventDefault()
+                event.stopPropagation()
+            } else {
+                duckduckgoDebugMessaging.log("don't block " + event.url);
+                return
+            }
+        }, true)
+
+
+        try {
+            duckduckgoDebugMessaging.log("installing image src detection")
+
+            var originalImageSrc = Object.getOwnPropertyDescriptor(Image.prototype, 'src')
+            Object.defineProperty(Image.prototype, 'src', {
+                writable: true, // Needs to be writable for the content blocking rules script. Will be locked down in that script
+                get: function() {
+                    return originalImageSrc.get.call(this)
+                },
+                set: function(value) {
+
+                    var instance = this
+                    if (shouldBlock(value, "image")) {
+                        duckduckgoDebugMessaging.log("blocking image src: " + value)
+                    } else {
+                        originalImageSrc.set.call(instance, value);
+                        duckduckgoDebugMessaging.log("allowing image src: " + value)
+                    }
+                    
+                }
+            })
+
+        } catch(error) {
+            duckduckgoDebugMessaging.log("failed to install image src detection")
         }
 
-		return blocked;
-	}
+        try {
+            duckduckgoDebugMessaging.log("installing xhr detection")
 
-	// Init 
-	(function() {
-		duckduckgoDebugMessaging.log("content blocking initialised")
-	})()
+            var xhr = XMLHttpRequest.prototype
+            var originalOpen = xhr.open
 
-	return { 
-		shouldBlock: shouldBlock
-	}
+            xhr.open = function() {
+                var args = arguments
+                var url = arguments[1]
+                if (shouldBlock(url, "xmlhttprequest")) {
+                    args[1] = "about:blank"
+                }
+                duckduckgoDebugMessaging.log("sending xhr " + url + " to " + args[1])
+                return originalOpen.apply(this, args);
+            }
+
+        } catch(error) {
+            duckduckgoDebugMessaging.log("failed to install xhr detection")
+        }
+        
+        duckduckgoDebugMessaging.log("content blocking initialised")
+    })()
+
+    return {
+        shouldBlock: shouldBlock
+    }
 }()

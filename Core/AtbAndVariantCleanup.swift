@@ -23,22 +23,13 @@ import Core
 public class AtbAndVariantCleanup {
 
     static func cleanup(statisticsStorage: StatisticsStore = StatisticsUserDefaults(),
-                        variantManager: VariantManager = DefaultVariantManager(),
-                        settings: AppSettings = AppUserDefaults()) {
+                        variantManager: VariantManager = DefaultVariantManager()) {
         
         guard let variant = statisticsStorage.variant else { return }
 
         // clean up ATB
         if let atb = statisticsStorage.atb, atb.hasSuffix(variant) {
             statisticsStorage.atb = String(atb.dropLast(variant.count))
-        }
-        
-        // Home page experiment migration
-        var mutableSettings = settings
-        if "mn" == variant {
-            mutableSettings.homePage = .centerSearch
-        } else if ["ml", "mm"].contains(variant) {
-            mutableSettings.homePage = .centerSearchAndFavorites
         }
         
         // remove existing variant if not in an active experiment

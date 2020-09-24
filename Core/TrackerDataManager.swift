@@ -21,6 +21,11 @@ import Foundation
 
 public class TrackerDataManager {
     
+    public struct Constants {
+        public static let embeddedDataSetETag = "5c5dda7f1873f3183b141c0739a187ca"
+        public static let embeddedDatsSetSHA = "R1SM0xhBMf4dmw40wRMbIskMFoVJaQ6t6I40hw9nL3k="
+    }
+    
     public enum DataSet {
         
         case embedded
@@ -32,13 +37,18 @@ public class TrackerDataManager {
     public static let shared = TrackerDataManager()
     
     private(set) public var trackerData: TrackerData!
-    
+    private(set) public var etag: String?
+
+    init(trackerData: TrackerData) {
+        self.trackerData = trackerData
+    }
+
     init() {
-        reload()
+        reload(etag: UserDefaultsETagStorage().etag(for: .trackerDataSet))
     }
     
     @discardableResult
-    public func reload() -> DataSet {
+    public func reload(etag: String?) -> DataSet {
         
         let dataSet: DataSet
         let data: Data
@@ -46,9 +56,11 @@ public class TrackerDataManager {
         if let loadedData = FileStore().loadAsData(forConfiguration: .trackerDataSet) {
             data = loadedData
             dataSet = .downloaded
+            self.etag = etag
         } else {
             data = Self.loadEmbeddedAsData()
             dataSet = .embedded
+            self.etag = Constants.embeddedDataSetETag
         }
         
         do {
@@ -58,6 +70,7 @@ public class TrackerDataManager {
             // This should NEVER fail
             let trackerData = try? JSONDecoder().decode(TrackerData.self, from: Self.loadEmbeddedAsData())
             self.trackerData = trackerData!
+            self.etag = Constants.embeddedDataSetETag
             Pixel.fire(pixel: .trackerDataParseFailed, error: error)
             return .embeddedFallback
         }
@@ -100,7 +113,7 @@ public class TrackerDataManager {
     }
     
     static var embeddedUrl: URL {
-        return Bundle(for: Self.self).url(forResource: "trackerData", withExtension: "json")!
+        return Bundle.core.url(forResource: "trackerData", withExtension: "json")!
     }
 
     static func loadEmbeddedAsData() -> Data {

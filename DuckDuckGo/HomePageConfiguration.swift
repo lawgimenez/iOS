@@ -22,56 +22,31 @@ import Core
 
 class HomePageConfiguration {
     
-    enum ConfigName: Int {
-
-        func components(withVariantManger variantManger: VariantManager = DefaultVariantManager()) -> [Component] {
-            let includePrivacySection = variantManger.isSupported(feature: .privacyOnHomeScreen)
-            
-            switch self {
-            case .simple:
-                if includePrivacySection {
-                    return [ .privacyProtection, .navigationBarSearch(withOffset: true) ]
-                }
-                return [ .navigationBarSearch(withOffset: false) ]
-                
-            case .centerSearch:
-                if includePrivacySection {
-                    return [ .centeredSearch(fixed: true), .privacyProtection, .empty ]
-                }
-                return [ .centeredSearch(fixed: true), .empty ]
-                
-            case .centerSearchAndFavorites:
-                if includePrivacySection {
-                    return [ .centeredSearch(fixed: false), .privacyProtection, .favorites(withHeader: true), .padding(withOffset: true) ]
-                }
-                return [ .centeredSearch(fixed: false), .favorites(withHeader: false), .padding(withOffset: false) ]
-            }
-            
-        }
-        
-        case simple
-        case centerSearch
-        case centerSearchAndFavorites
-        
-    }
-    
     enum Component: Equatable {
-        case privacyProtection
-        case navigationBarSearch(withOffset: Bool)
-        case centeredSearch(fixed: Bool)
-        case favorites(withHeader: Bool)
-        case padding(withOffset: Bool)
-        case empty
+        case navigationBarSearch(fixed: Bool)
+        case favorites
+        case homeMessage
     }
     
-    let settings: AppSettings
-    
-    func components(withVariantManger variantManger: VariantManager = DefaultVariantManager()) -> [Component] {
-        return settings.homePage.components(withVariantManger: variantManger)
+    func components(bookmarksManager: BookmarksManager = BookmarksManager()) -> [Component] {
+        let fixed = bookmarksManager.favoritesCount == 0
+        return [
+            .navigationBarSearch(fixed: fixed),
+            .homeMessage,
+            .favorites
+        ]
     }
     
-    init(settings: AppSettings = AppUserDefaults()) {
-        self.settings = settings
+    private let homeMessageStorage = HomeMessageStorage()
+    
+    func homeMessages() -> [HomeMessageModel] {
+        return homeMessageStorage.homeMessagesThatShouldBeShown()
     }
     
+    func homeMessageDismissed(_ homeMessage: HomeMessage) {
+        switch homeMessage {
+        case .defaultBrowserPrompt:
+            homeMessageStorage.homeDefaultBrowserMessageDateDismissed = Date()
+        }
+    }
 }
